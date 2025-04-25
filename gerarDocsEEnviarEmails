@@ -1,0 +1,43 @@
+function gerarDocsEEnviarEmails() {
+  const ID_MODELO_DOC = '1rS2Fhr29B57xT2g3fivHrow9szTTll1lnmEEWYpPQhk';
+  const ID_PLANILHA = '1_XBs4rnJbyKnaok9tD1POKNwqIWQ4_JXJ5p7UM5HKVo';
+  const NOME_PLANILHA = 'Respostas ao formulário 1'; // Altere se o nome da aba for diferente
+
+  const planilha = SpreadsheetApp.openById(ID_PLANILHA).getSheetByName(NOME_PLANILHA);
+  const dados = planilha.getDataRange().getValues();
+  const cabecalhos = dados[0];
+
+  for (let i = 1; i < dados.length; i++) {
+    const linha = dados[i];
+    const status = linha[cabecalhos.indexOf("Status")];
+
+    // Pule se já foi processado
+    if (status === "Enviado") continue;
+
+    let docCopia = DriveApp.getFileById(ID_MODELO_DOC).makeCopy(`Doc - ${linha[0]}`);
+    let doc = DocumentApp.openById(docCopia.getId());
+    let corpo = doc.getBody();
+
+    // Substituição de placeholders
+    cabecalhos.forEach((chave, idx) => {
+      const valor = linha[idx];
+      if (chave !== "Status") {
+        corpo.replaceText(`{{${chave}}}`, valor);
+      }
+    });
+
+    doc.saveAndClose();
+
+    // Enviar email
+    const email = linha[cabecalhos.indexOf("email")];
+    MailApp.sendEmail({
+      to: email,
+      subject: "Seu documento personalizado",
+      body: "Olá! Segue seu documento personalizado em anexo.",
+      attachments: [docCopia.getAs(MimeType.PDF)]
+    });
+
+    // Atualizar status na planilha
+    planilha.getRange(i + 1, cabecalhos.indexOf("Status") + 1).setValue("Enviado");
+  }
+}
