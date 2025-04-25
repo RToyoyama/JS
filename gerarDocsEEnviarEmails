@@ -1,43 +1,49 @@
 function gerarDocsEEnviarEmails() {
   const ID_MODELO_DOC = '1rS2Fhr29B57xT2g3fivHrow9szTTll1lnmEEWYpPQhk';
   const ID_PLANILHA = '1_XBs4rnJbyKnaok9tD1POKNwqIWQ4_JXJ5p7UM5HKVo';
-  const NOME_PLANILHA = 'Respostas ao formulário 1'; // Altere se o nome da aba for diferente
+  const NOME_PLANILHA = 'Respostas ao formulário 1';
 
   const planilha = SpreadsheetApp.openById(ID_PLANILHA).getSheetByName(NOME_PLANILHA);
   const dados = planilha.getDataRange().getValues();
   const cabecalhos = dados[0];
 
+  const indiceStatus = cabecalhos.indexOf("Status");
+  if (indiceStatus === -1) {
+    throw new Error('A coluna "Status" não foi encontrada na planilha!');
+  }
+
   for (let i = 1; i < dados.length; i++) {
     const linha = dados[i];
-    const status = linha[cabecalhos.indexOf("Status")];
+    const status = linha[indiceStatus];
 
-    // Pule se já foi processado
     if (status === "Enviado") continue;
 
-    let docCopia = DriveApp.getFileById(ID_MODELO_DOC).makeCopy(`Doc - ${linha[0]}`);
-    let doc = DocumentApp.openById(docCopia.getId());
-    let corpo = doc.getBody();
+    const nomeDoc = `Documento - ${linha[0]}`;
+    const copiaModelo = DriveApp.getFileById(ID_MODELO_DOC).makeCopy(nomeDoc);
+    const doc = DocumentApp.openById(copiaModelo.getId());
+    const corpo = doc.getBody();
 
-    // Substituição de placeholders
-    cabecalhos.forEach((chave, idx) => {
-      const valor = linha[idx];
+    for (let j = 0; j < cabecalhos.length; j++) {
+      const chave = cabecalhos[j];
       if (chave !== "Status") {
-        corpo.replaceText(`{{${chave}}}`, valor);
+        const valor = linha[j];
+        corpo.replaceText(`{{${chave}}}`, valor.toString());
       }
-    });
+    }
 
     doc.saveAndClose();
 
-    // Enviar email
-    const email = linha[cabecalhos.indexOf("email")];
+    const indiceEmail = cabecalhos.indexOf("email");
+    const emailDestino = linha[indiceEmail];
+
     MailApp.sendEmail({
-      to: email,
+      to: emailDestino,
       subject: "Seu documento personalizado",
-      body: "Olá! Segue seu documento personalizado em anexo.",
-      attachments: [docCopia.getAs(MimeType.PDF)]
+      body: "Olá! Segue em anexo seu documento gerado automaticamente.",
+      attachments: [copiaModelo.getAs(MimeType.PDF)]
     });
 
-    // Atualizar status na planilha
-    planilha.getRange(i + 1, cabecalhos.indexOf("Status") + 1).setValue("Enviado");
+    // Agora com índice válido garantido
+    planilha.getRange(i + 1, indiceStatus + 1).setValue("Enviado");
   }
 }
